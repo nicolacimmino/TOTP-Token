@@ -48,10 +48,10 @@
 //
 #define DS3234_CS_PIN 9
 
-#include <Time.h>
+#include <Time.h>        // Arduino Time library (http://playground.arduino.cc/Code/Time)
 #include <avr/sleep.h>
 #include <SPI.h>
-#include "sha1.h"
+#include "sha1.h"        // Arduino Cryptosuite  (https://github.com/Cathedrow/Cryptosuite) 
 
 byte digitsSegments[10];
 
