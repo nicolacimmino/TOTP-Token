@@ -18,6 +18,6 @@ On the back the RTC breakout board with the backup battery visible. The actual R
 
 ![Proto Back](https://raw.github.com/nicolacimmino/TOTP-Token/master/images/ProtoBack.jpg)
 
-I made use of the Arduino Cryptolib (https://github.com/Cathedrow/Cryptosuite) which sped up te job incredibly as it offers ready implementation for the HMAC-SHA1 so all I had to do was to drive the RTC, the display and implement the actual HOTP calculation. I also made use of the Arduino Time library (http://playground.arduino.cc/Code/Time#.Uw96bPmSwVU) to convert human readable time to Unix Epoch.
+I made use of the Arduino Cryptolib (https://github.com/Cathedrow/Cryptosuite) which sped up te job incredibly as it offers ready implementation for the HMAC-SHA1 so all I had to do was to drive the RTC, the display and implement the actual HOTP calculation. I also made use of the Arduino Time library (http://playground.arduino.cc/Code/Time) to convert human readable time to Unix Epoch.
  
 
