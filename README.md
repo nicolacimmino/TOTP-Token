@@ -10,8 +10,8 @@ While working at another project I came aross HMAC-SHA1 (RFC 2104) and HOTP (HMA
 
 Few hours later the prototype shown below was ready and, with great amazement, a software token on Android programmed with the same key kept constantly spitting out the same token as the display!
 
-![Proto Front](https://github.com/nicolacimmino/HOTP-Token/master/images/ProtoFront.jpg)
+![Proto Front](https://raw.com/nicolacimmino/HOTP-Token/master/images/ProtoFront.jpg)
 
-![Proto Back](https://github.com/nicolacimmino/HOTP-Token/master/images/ProtoBack.jpg)
+![Proto Back](https://raw.com/nicolacimmino/HOTP-Token/master/images/ProtoBack.jpg)
 
 
