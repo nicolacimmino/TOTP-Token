@@ -3,6 +3,12 @@ TOTP-Token
 
 A simple implementation of a time based OTP token based on HOTP open standard
 
+The picture below shows the TOTP prototype in its current iteration where I have taken into use an OLED graphical display:
+
+![Proto New](https://raw.github.com/nicolacimmino/TOTP-Token/master/images/NewProto.jpg)
+
+The bar decreases indicating the time left to use the TOTP befoe it exprires. Max validity is 30s but what you get depends on the instant when the TOTP is generated, so the bar helps to identify a password that is about to expire and cannot be used in time.
+
 Background
 ==========
 
