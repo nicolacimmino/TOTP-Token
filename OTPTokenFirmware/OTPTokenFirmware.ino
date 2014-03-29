@@ -1,10 +1,6 @@
 // OTPToken implements HOTP (HMAC-based One Time Password) described in RFC4226,
 //  to generate a time based authentication token that can be used, for instance,
 //  in a two factors authentication system.
-// 
-// This code is suitable for a prototype I built out of salvaged parts. If you
-//  want to use this code you might consider using an SPI display in place of
-//  the multiplexed 7 segments I used.
 //
 //  Copyright (C) 2014 Nicola Cimmino
 //
@@ -23,62 +19,50 @@
 //
 // Connections:
 //
-// D2  -> Display Segment a anode
-// D3  -> Display Segment b anode
-// D4  -> Display Segment c anode
-// D5  -> Display Segment d anode
-// D6  -> Display Segment e anode
-// D7  -> Display Segment f anode
-// D8  -> Display Segment g anode
+// D2  -> Display VCC
+// D3  -> Display SCL 
+// D4  -> Display SDA
+// D5  -> Display RST
+// D6  -> Display D/C
 // D9  -> DS3234 CS
-// D10 -> Display Digit 1 cathode + DS3234 SS
-// D11 -> Display Digit 2 cathode + DS3234 MOSI
-// D12 -> Display Digit 3 cathode + DS3234 MISO
-// D13 -> Display Digit 4 cathode + DS3234 SCLK
-// A0  -> Display Digit 5 cathode Addressed in code as digital pin 14
-// A1  -> Display Digit 6 cathode Addressed in code as digital pin 15
-// A2  -> Display Digit 7 cathode Addressed in code as digital pin 16
-// A3  -> Display Digit 8 cathode Addressed in code as digital pin 17
+// D10 -> DS3234 SS
+// D11 -> DS3234 MOSI
+// D12 -> DS3234 MISO
+// D13 -> DS3234 SCL
 //
-// Note that the SPI lines are shared with some of the display catodes. When accessing SPI devices
-//  all display anodes must be set LOW and when multiplexing digits the SPI.end must have been
-//  called before to release the SPI lines, as long as DS3234 CS is held low its pins will all be
-//  high impedance. A shift register for the cathode lines would have reduced the used pins count
-//  but as stated this was hacked together with what I had available.
-//
-#define DS3234_CS_PIN 9
 
 #include <Time.h>        // Arduino Time library (http://playground.arduino.cc/Code/Time)
+#include "sha1.h"        // Arduino Cryptosuite  (https://github.com/Cathedrow/Cryptosuite) 
 #include <avr/sleep.h>
 #include <SPI.h>
-#include "sha1.h"        // Arduino Cryptosuite  (https://github.com/Cathedrow/Cryptosuite) 
+#include <Wire.h>
+#include <Adafruit_GFX.h>       // Adafruit GFX Lib (https://github.com/adafruit/Adafruit-GFX-Library)
+#include <Adafruit_SSD1306.h>   // Adafruit SSD1306 Lib (https://github.com/adafruit/Adafruit_SSD1306)
 
-byte digitsSegments[10];
+// Display and RTC pins.
+#define OLED_VCC      2
+#define OLED_MOSI     4 
+#define OLED_CLK      3
+#define OLED_DC       6
+#define OLED_CS       12
+#define OLED_RESET    5 
+#define DS3234_CS_PIN 10
 
+// Display controller.
+Adafruit_SSD1306 display(OLED_MOSI, OLED_CLK, OLED_DC, OLED_RESET, OLED_CS);
+
+// This is the secret key.
 uint8_t secretKey[]={ 0x32, 0x83, 0x56, 0x4f, 0x33, 0x9a, 0xac, 0x21, 0x94, 0x82, 0xcc, 0x3f, 0x48, 0x67, 0x12, 0x3c };
 
+////////////////////////////////////////////////////////////////////////////////
+// Application setup after reset.
+//
 void setup()
 {
-  Serial.begin(115200);
-  
-  // This represents the status of the seven segments
-  //  display for each digit 0-9. Each bit represents
-  //  one segment starting from bit6 being segment a
-  //  to bit0 with segment g.
-  digitsSegments[0]= 0b1111110;
-  digitsSegments[1]= 0b0110000;
-  digitsSegments[2]= 0b1101101;
-  digitsSegments[3]= 0b1111001;
-  digitsSegments[4]= 0b0110011;
-  digitsSegments[5]= 0b1011011;
-  digitsSegments[6]= 0b1011111;
-  digitsSegments[7]= 0b1110000;
-  digitsSegments[8]= 0b1111111;
-  digitsSegments[9]= 0b1111011;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// Application etry point after setup() has executed.
+// Application entry point after setup() has executed.
 //
 void loop()
 {
@@ -91,16 +75,21 @@ void loop()
   // You have now written current time to the RTC. Remember to COMMENT OUT this line
   //  and upload again immediately else you will continue to set back your clock 
   //  at every reset! 
-  //SetTimeDate(26,2,14,18,34,00);
+  //setDateAndTime(28,3,14,19,49,00);
   
   // We use the current UTC time expressed as unix epoch (time) divided by 30. So, 
   //  in a sense this is not exactly a one time password, the generated value will
   //  stay valid for 30s. 
   long time = GetUnixTime() / 30;
   
-  // We don't need the RTC anymore, free the lines for the display.
-  Disable_DS3234();
-  setPinsForDisplayOperation();
+  // Power up display.
+  pinMode(OLED_VCC, OUTPUT);
+  digitalWrite(OLED_VCC,HIGH);
+
+  // generate the high voltage from the 3.3v line internally.
+  display.begin(SSD1306_SWITCHCAPVCC);
+  display.clearDisplay();   // clears the screen and buffer
+  
 
   // According to RFC4226, Page 6 we start with an HMAC-1 seeded wtih the secret key (K).
   // We use 16 bytes key in this example.
@@ -142,61 +131,45 @@ void loop()
    // As from example on RFC4226, Page 8.
    otp = otp % 1000000;
    
-   // Show the number for 4 seconds.
-   // Note that since we multiplex display digits inside displayNumber
-   //   this needs to be called repeatedly until we want the number to
-   //   be seen. Another way to do this is by interrupts but in this 
-   //   simple example we have nothing else to do in this loop. 
-   long startTime = millis();
-   while(millis() - startTime < 4000)
-   {
-     displayNumber(otp);
-   }
+  display.setTextSize(2);
+  display.setTextColor(WHITE);
   
-   // Power down. To show a new token user will reset the MCU by pressing
-   //  the onboard reset button.
-   set_sleep_mode(SLEEP_MODE_PWR_DOWN);
-   sleep_enable();
-   sleep_cpu();
-   
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// Given a number it will display it with 6 digits including leading zeros.
-//  (this is wanted as this is a password not just a number).
-//
-void displayNumber(long number)
-{
-   for(int p=0; p<6; p++)
-   {
-     displayDigit(number%10, p);
-     number=number/10;
-   } 
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// Given a single digit number it will display it in the specified position.
-//
-void displayDigit(byte digit, int pos)
-{
-  // First we set the anodes according to the contents of the 
-  //  lookup table digitsSegments. The first anode correponds
-  //  to bit 6 in the lookup table (segment a).
-  // Anodes start at pin 2.
-  for(int i=0; i<7; i++)
+   // Show the number until the TOTP expires.
+  long expiryTime = (time + 1) * 30;
+  long timeLeft = expiryTime - GetUnixTime();
+  while(timeLeft > 1)
   {
-    digitalWrite(2+i,(digitsSegments[digit]>>(6-i)) & 1);
+      // First we print the TOTP
+      display.setCursor(29,10);
+      display.clearDisplay();
+      for(int p=5;p>0;p--)
+      {
+        display.print((long)floor(otp / pow(10,p))%10);
+      }
+      display.println(otp%10);
+      
+      display.drawRect(34,40, 60, 10 ,WHITE);
+      display.fillRect(34,40, timeLeft*2, 10 ,WHITE);
+      display.display();  
+      delay(1000);
+      timeLeft = expiryTime - GetUnixTime();
   }
-  
-  // We flip low the cathode for a short period during which
-  //  the segments will lit. We have 1mS per digit, times 8 digits
-  //  the multiplex interval is 8mS, which means 125Hz, so it looks
-  //  stable.
-  digitalWrite(11 + pos, LOW); 
-  delay(1);
-  digitalWrite(11 + pos, HIGH); 
-}
+   
+  // Change all lines connected to display to inputs, if we
+  //  ground VCC then current will flow trough the clamps
+  //  inside the display and take power also when the device is off.
+  for(int p=2;p<=6;p++)
+    pinMode(p, INPUT);
 
+  // Power down the RTC so it doesn't take power.
+  Disable_DS3234(); 
+   
+  // Power down the processor. To show a new token user will reset the MCU by pressing
+  //  the onboard reset button.
+  set_sleep_mode(SLEEP_MODE_PWR_DOWN);
+  sleep_enable();
+  sleep_cpu(); 
+}
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -204,7 +177,15 @@ void displayDigit(byte digit, int pos)
 // 
 int initialize_DS3234()
 {
-  // Preapare SPI bus. According to DS3234 datasheed we need MSB first and Mode1 
+  // We use two pins to power the RTC so we
+  //  can programmatically shut it down to preserve
+  //  battery. Its onboard battery will keep the time.
+  pinMode(A2,OUTPUT);
+  pinMode(A1,OUTPUT);
+  digitalWrite(A1, HIGH);  // VCC
+  digitalWrite(A2, LOW);   // GND
+  
+  // Preapare SPI bus. According to DS3234 datasheed we need MSB first and Mode 1 
   pinMode(DS3234_CS_PIN,OUTPUT);
   SPI.begin();
   SPI.setBitOrder(MSBFIRST); 
@@ -216,14 +197,14 @@ int initialize_DS3234()
   writeDS3234Register(0x0E, 0x00);
 }
 
-int setDateAndTime(int day, int month, int year, int hour, int minute, int second)
+int setDateAndTime(int v_day, int v_month, int v_year, int v_hour, int v_minute, int v_second)
 {
-  writeDS3234BCDRegister(0x00, second);
-  writeDS3234BCDRegister(0x01, minute);
-  writeDS3234BCDRegister(0x02, hour);
-  writeDS3234BCDRegister(0x04, day);
-  writeDS3234BCDRegister(0x05, month);
-  writeDS3234BCDRegister(0x06, year);
+  writeDS3234BCDRegister(0x00, v_second);
+  writeDS3234BCDRegister(0x01, v_minute);
+  writeDS3234BCDRegister(0x02, v_hour);
+  writeDS3234BCDRegister(0x04, v_day);
+  writeDS3234BCDRegister(0x05, v_month);
+  writeDS3234BCDRegister(0x06, v_year);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -260,7 +241,7 @@ byte readDS3234BCDRegister(byte address)
 void writeDS3234BCDRegister(byte address, byte value)
 {
   // Convert the value to a two digits BCD.
-  byte bcdValue = (value/10) << 4 + (value % 10);
+  byte bcdValue = ((value/10) << 4) + (value % 10);
   
   digitalWrite(DS3234_CS_PIN, LOW);
   SPI.transfer(address + 0x80);
@@ -286,6 +267,7 @@ void writeDS3234Register(byte address, byte value)
 //
 void Disable_DS3234()
 {
+  digitalWrite(A1, LOW);
   SPI.end();  
 }
   
