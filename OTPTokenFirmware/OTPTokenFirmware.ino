@@ -24,7 +24,7 @@
 // D4  -> Display SDA
 // D5  -> Display RST
 // D6  -> Display D/C
-// D9  -> DS3234 CS
+// D9  -> DS3234 CSDisable_DS3234
 // D10 -> DS3234 SS
 // D11 -> DS3234 MOSI
 // D12 -> DS3234 MISO
@@ -262,26 +262,10 @@ void writeDS3234Register(byte address, byte value)
 
 ////////////////////////////////////////////////////////////////////////////////
 // Disables the DS3234 so that lines used by the SPI are free.
-// Must be always followed by a call to setPinsForDisplayOperation before the 
-//  display is used.
 //
 void Disable_DS3234()
 {
   digitalWrite(A1, LOW);
   SPI.end();  
-}
-  
-////////////////////////////////////////////////////////////////////////////////
-// Cofigures the pins for display usage and ensures all digits are off.
-//
-void setPinsForDisplayOperation()
-{
- for(int i=2; i<=17; i++)
-  {
-    pinMode(i, OUTPUT);
-    
-    // Low D2-D8 (anodes) and high D9-D17 (DS34 CS and cathodes),
-    digitalWrite(i,(i<9)?LOW:HIGH);
-  } 
 }
 
